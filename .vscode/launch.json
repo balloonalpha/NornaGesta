@@ -1,13 +1,14 @@
 {
-    "version": "0.2.0",
-    "configurations": [
-      {
-        "type": "minecraft-js",
-        "request": "attach",
-        "name": "Wait for Minecraft Debug Connections",
-        "mode": "listen",
-        "localRoot": "${workspaceFolder}/",
-        "port": 19144
-      }
-    ]
-  }
+  "version": "0.3.0",
+  "configurations": [
+    {
+      "type": "minecraft-js",
+      "request": "attach",
+      "name": "Debug with Minecraft",
+      "mode": "listen",
+      "targetModuleUuid": "0d5f498f-e169-4967-b234-d4498fca44e5",
+      "localRoot": "${workspaceFolder}/scripts/",
+      "port": 19144
+    }
+  ]
+}

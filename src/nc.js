@@ -1,38 +1,35 @@
-import { BlockLocation, Trigger, world } from "mojang-minecraft";
+import { Trigger, world, system } from "@minecraft/server";
 import {
     ActionFormData,
     MessageFormData,
     ModalFormData
-} from "mojang-minecraft-ui"
+} from "@minecraft/server-ui"
 
-import { systemInstance as system, emptyPlatform, Coordinate, Position, BlockType, Direction, Block } from 'norma-core';
+import { systemInstance, emptyPlatform, Coordinate, Position, BlockType, Direction, Block } from 'norma-core';
 import './plugin/index.js';
 
 const lastTimeOfPlayerRequest = new Map()
 
-function assembleUseItemData(player, blockLocation) {
+function assembleUseItemData(player, blockLocation, dimension = "overworld") {
     let { x, y, z } = blockLocation
-    let dimension = "overworld"//Currently unable to fetch the name of the dimension
+    //Currently unable to fetch the name of the dimension
 
     return {
         blockType: getBlock(new Position(new Coordinate(x, y, z), dimension)),
         position: new Position({ x, y, z }, dimension),
-        direction: new Direction(player.rotation.x, player.rotation.y)
+        direction: new Direction(player.getRotation().x, player.getRotation().y)
     }
 }
 function getBlock(position) {
     let { x, y, z } = position.coordinate
-    let rawBlock = world.getDimension(position.dimension).getBlock(new BlockLocation(x, y, z))
-    let block = new BlockType(rawBlock.id, rawBlock.permutation.getAllProperties().reduce(
-        (pre, cur) => Object.assign(pre, { [cur.name]: cur.value }),
-        {}
-    ))
+    let rawBlock = world.getDimension(position.dimension).getBlock(new Coordinate(x, y, z))
+    let block = new BlockType(rawBlock.typeId, rawBlock.permutation.getAllStates())
     return block
 }
 
-system.inject({
+systemInstance.inject({
     createRuntime: function (id) {
-        let user = system.getUser(id);
+        let user = systemInstance.getUser(id);
         return {
             logger: loggerFactory(id),
             getBlock: getBlock
@@ -40,18 +37,19 @@ system.inject({
     }
 })
 
-world.events.blockPlace.subscribe(({ player, block, dimension }) => {
-    handlePlayerRequest({ requestType: "get_block_type", playerID: player.nameTag/*No other unique identifier available.*/, additionalData: assembleUseItemData(player, block.location) })
+world.afterEvents.playerPlaceBlock.subscribe(({ player, block, dimension }) => {
+    handlePlayerRequest({ requestType: "get_block_type", playerID: player.nameTag/*No other unique identifier available.*/, additionalData: assembleUseItemData(player, block.location, dimension.id.slice("minecraft:".length)) })
 })
-world.events.itemUseOn.subscribe(({ source, item, blockLocation }) => {
-    if (source.id === "minecraft:player" && item.id.startsWith("normaconstructor:")) {
-        handlePlayerRequest({ requestType: item.id.slice(item.id.indexOf(":") + 1), playerID: source.nameTag, additionalData: assembleUseItemData(source, blockLocation) })
+
+world.beforeEvents.itemUseOn.subscribe(({ source, itemStack: item, block }) => {
+    if (source.typeId === "minecraft:player" && item.type.id.startsWith("normaconstructor:")) {
+        handlePlayerRequest({ requestType: item.type.id.slice(item.type.id.indexOf(":") + 1), playerID: source.nameTag, additionalData: assembleUseItemData(source, block.location) })
     }
 })
 
 function getUser(playerID) {
     function registerNewUser(playerID) {
-        let user = system.createUser(playerID)
+        let user = systemInstance.createUser(playerID)
         //TODO:Separate the following initialization process from this function.
         user.session["__requestAdditionalPosition"] = false;
         user.session["__requestAdditionalBlockType"] = false;
@@ -60,7 +58,7 @@ function getUser(playerID) {
         user.session["__on"] = true;
         return user;
     }
-    return system.hasUser(playerID) ? system.getUser(playerID) : registerNewUser(playerID)
+    return systemInstance.hasUser(playerID) ? systemInstance.getUser(playerID) : registerNewUser(playerID)
 }
 
 function handlePlayerRequest({ requestType, playerID, additionalData }) {
@@ -220,14 +218,14 @@ function handlePlayerRequest({ requestType, playerID, additionalData }) {
         }
     }
 }
-world.events.beforeChat.subscribe(e => {
-    let logger = loggerFactory(e.sender.name);
-    logger.log("debug", e.message)
-    if (e.message.startsWith("nos:")) {
-        e.cancel = true;
-        handlePlayerRequest({ requestType: "run_nos", playerID: e.sender.name, additionalData: { nos: e.message.slice("nos:".length) } })
-    }
-})
+// world.events.beforeChat.subscribe(e => {
+//     let logger = loggerFactory(e.sender.name);
+//     logger.log("debug", e.message)
+//     if (e.message.startsWith("nos:")) {
+//         e.cancel = true;
+//         handlePlayerRequest({ requestType: "run_nos", playerID: e.sender.name, additionalData: { nos: e.message.slice("nos:".length) } })
+//     }
+// })
 let compiler = {
     raw: function (blockArray) {
         return blockArray
@@ -347,14 +345,14 @@ async function execute(playerID) {
 function displayObject(object, playerID) {
     displayChat(JSON.stringify(object, null, '    '), playerID)
 }
-function displayChat(message, playerID) {
+function displayChat(message, playerID, dimension = "overworld") {
     if (playerID)
-        [...(world.getDimension("overworld").getPlayers({ name: playerID }))][0].tell(message)
-    else world.say(message)
+        [...(world.getDimension(dimension).getPlayers({ name: playerID }))][0].sendMessage(message)
+    else world.sendMessage(message)
 
 }
-function getPlayer(playerID) {
-    return [...(world.getDimension("overworld").getPlayers({ name: playerID }))][0]
+function getPlayer(playerID, dimension = "overworld") {
+    return [...(world.getDimension(dimension).getPlayers({ name: playerID }))][0]
 }
 function setBlock(block) {
     let blockType = block.blockType
@@ -389,25 +387,8 @@ function loggerFactory(playerID) {
     }
 }
 
-let worldTick = 0, waitQueue = new Set()
-
-world.events.tick.subscribe((event) => {
-    worldTick = event.currentTick
-    if (waitQueue.size > 0) {
-        waitQueue.forEach((e) => {
-            if (e.endTick >= worldTick) {
-                e.resolve()
-                waitQueue.delete(e)
-            }
-        })
-    }
-})
-
 async function wait(period) {
     return new Promise((resolve, reject) => {
-        waitQueue.add({
-            resolve,
-            endTick: worldTick + period
-        })
+        system.runTimeout(resolve, period)
     })
 }

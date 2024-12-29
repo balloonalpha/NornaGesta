@@ -5,7 +5,7 @@
     "name": "NC-GT",
     "uuid": "1ac5471a-2162-4a10-8590-c6f7f60bd957",
     "version": [0, 0, 1],
-    "min_engine_version": [ 1, 19, 0 ]
+    "min_engine_version": [ 1, 20, 0 ]
   },
   "modules": [
     {
@@ -17,18 +17,15 @@
       "entry": "scripts/index.js"
     }
   ],
+  "capabilities": ["script_eval"],
   "dependencies": [
     {
-      "module_name": "mojang-minecraft",
-      "version": "1.0.0-beta"
+        "module_name": "@minecraft/server",
+        "version": "1.16.0"
     },
     {
-      "module_name": "mojang-gametest",
-      "version": "1.0.0-beta"
-    },
-    {
-      "module_name":"mojang-minecraft-ui",
-      "version": "1.0.0-beta"
+        "module_name": "@minecraft/server-ui",
+        "version": "1.3.0"
     }
   ]
 }
