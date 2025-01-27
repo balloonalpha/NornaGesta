@@ -46,7 +46,7 @@ world.afterEvents.playerPlaceBlock.subscribe(({ player, block, dimension }) => {
 })
 
 world.beforeEvents.itemUseOn.subscribe(({ source, itemStack: item, block }) => {
-    if (player.hasTag(ADMIN_TAG) && (source.typeId === "minecraft:player" && item.type.id.startsWith("normaconstructor:"))) {
+    if (source.hasTag(ADMIN_TAG) && (source.typeId === "minecraft:player" && item.type.id.startsWith("normaconstructor:"))) {
         handlePlayerRequest({ requestType: item.type.id.slice(item.type.id.indexOf(":") + 1), playerID: source.nameTag, additionalData: assembleUseItemData(source, block.location) })
     }
 })
